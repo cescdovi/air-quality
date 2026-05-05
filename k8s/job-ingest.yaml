@@ -1,0 +1,17 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: aq-ingest
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: ingest
+          image: aq-ingest:v1
+          imagePullPolicy: Never
+          envFrom:
+            - secretRef:    { name: minio-credentials }
+            - configMapRef: { name: minio-config }

@@ -1,0 +1,17 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: aq-plot
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: plot
+          image: aq-plot:v1
+          imagePullPolicy: Never
+          envFrom:
+            - secretRef:    { name: minio-credentials }
+            - configMapRef: { name: minio-config }

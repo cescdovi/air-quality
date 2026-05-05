@@ -1,0 +1,17 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: aq-impute
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: impute
+          image: aq-impute:v1
+          imagePullPolicy: Never
+          envFrom:
+            - secretRef:    { name: minio-credentials }
+            - configMapRef: { name: minio-config }

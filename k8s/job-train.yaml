@@ -1,0 +1,17 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: aq-train
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: train
+          image: aq-train:v1
+          imagePullPolicy: Never
+          envFrom:
+            - secretRef:    { name: minio-credentials }
+            - configMapRef: { name: minio-config }

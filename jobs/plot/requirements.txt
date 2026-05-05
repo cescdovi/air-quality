@@ -1,0 +1,4 @@
+pandas==2.2.3
+pyarrow==17.0.0
+matplotlib==3.9.2
+s3fs==2024.10.0

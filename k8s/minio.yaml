@@ -1,0 +1,110 @@
+# MinIO interno al cluster (object storage compatible con S3).
+# - Sustituye al servidor NFS: el kernel linuxkit de Docker Desktop no
+#   trae módulos NFS, así que ni server ni client funcionan dentro del
+#   cluster con driver=docker. MinIO habla HTTP/S3 → cero kernel modules.
+# - Backing storage: emptyDir (los datos se pierden si se borra el pod;
+#   coherente con el setup anterior).
+# - Credenciales por defecto vía Secret (proyecto académico).
+# - Job `minio-init` crea el bucket `aq-data` al arrancar.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-credentials
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: minioadmin
+  AWS_SECRET_ACCESS_KEY: minioadmin
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-config
+data:
+  AWS_ENDPOINT_URL: http://minio.default.svc.cluster.local:9000
+  AWS_REGION: us-east-1
+  AQ_BUCKET: aq-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+          args: ["server", "/data", "--console-address", ":9001"]
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: AWS_ACCESS_KEY_ID
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-credentials
+                  key: AWS_SECRET_ACCESS_KEY
+          ports:
+            - { name: api,     containerPort: 9000 }
+            - { name: console, containerPort: 9001 }
+          volumeMounts:
+            - name: storage
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: 9000
+            periodSeconds: 5
+      volumes:
+        - name: storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+spec:
+  selector:
+    app: minio
+  ports:
+    - { name: api,     port: 9000, targetPort: 9000 }
+    - { name: console, port: 9001, targetPort: 9001 }
+---
+# Job de inicialización: espera a que MinIO esté arriba y crea el bucket.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+spec:
+  ttlSecondsAfterFinished: 60
+  backoffLimit: 5
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:RELEASE.2024-10-08T09-37-26Z
+          envFrom:
+            - secretRef:    { name: minio-credentials }
+            - configMapRef: { name: minio-config }
+          command:
+            - sh
+            - -c
+            - |
+              until mc alias set aq "$AWS_ENDPOINT_URL" "$AWS_ACCESS_KEY_ID" "$AWS_SECRET_ACCESS_KEY"; do
+                echo "esperando MinIO..."; sleep 2;
+              done
+              mc mb --ignore-existing aq/"$AQ_BUCKET"
+              mc ls aq/"$AQ_BUCKET"
