@@ -8,7 +8,7 @@
 #   ./aq.sh images        # construye las 4 imágenes Docker dentro de minikube
 #   ./aq.sh run <job>     # corre un Job (ingest|impute|train|plot)
 #   ./aq.sh pipeline      # corre los 4 Jobs en orden
-#   ./aq.sh up            # todo de cero (cluster + minio + images + pipeline)
+#   ./aq.sh up            # todo desde cero (cluster + minio + images + pipeline)
 #   ./aq.sh clean-jobs    # borra los 4 Jobs (no toca MinIO)
 #   ./aq.sh ls            # lista los objetos del bucket aq-data
 #   ./aq.sh cp <fichero>  # copia un objeto del bucket al directorio actual
@@ -23,7 +23,7 @@ JOBS=(ingest impute train plot)
 BUCKET="aq-data"
 
 cmd_cluster() {
-    minikube start -p "${PROFILE}" --driver="${DRIVER}" --cpus=4 --memory=24576
+    minikube start -p "${PROFILE}" --driver="${DRIVER}" --cpus=4 --memory=8192
     kubectl config use-context "${PROFILE}"
 }
 
