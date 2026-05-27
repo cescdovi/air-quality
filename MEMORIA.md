@@ -27,19 +27,25 @@ Construir un pipeline **end-to-end** de MLOps que:
 API Valencia
      │
      ▼
-[Job 1: Ingest] ──► MinIO: raw.parquet
-                         │
-                         ▼
-               [Job 2: Impute] ──► MinIO: clean.parquet
-                                        │
-                                        ▼
-                              [Job 3: Train] ──► MinIO: dataset.parquet
-                                                        predictions.csv
-                                                        metrics.json
-                                                        │
-                                                        ▼
-                                              [Job 4: Plot] ──► MinIO: forecast.png
+[Job 1: Ingest] ──► [Data Lake HA (MinIO 4-nodes)] ◄── [Job 2: Impute]
+                         │                 │
+                         ▼                 ▼
+               (raw.parquet)        (clean.parquet)
+                         │                 │
+                         └───────┬─────────┘
+                                 ▼
+                          [Job 3: Train] ──► [Data Lake HA]
+                                                   │
+                                                   ▼
+                                            [Job 4: Plot]
 ```
+
+### 2.1 Extensión: Data Lake de Alta Disponibilidad
+Se ha implementado un segundo proyecto independiente (`datalake-ha/`) que gestiona un cluster distribuido de MinIO. 
+- **Persistencia:** Reemplaza `emptyDir` por `PersistentVolumeClaims`.
+- **Tolerancia a fallos:** 4 Pods en modo distribuido con *Erasure Coding*.
+- **Integración:** El pipeline de Calidad del Aire se conecta a este cluster como su infraestructura de almacenamiento centralizada.
+
 
 Todos los Jobs corren dentro de un **cluster Minikube** (Kubernetes local con driver Docker). MinIO actúa como capa de almacenamiento compartida entre Jobs — equivalente a S3 en un entorno cloud real.
 
@@ -314,6 +320,9 @@ El spec planteaba orquestar con Airflow + `KubernetesJobOperator`. En la impleme
 | Dataset congelado en 2021 (no tiene datos recientes) | Ventana de 6 meses (jul–dic 2021) suficiente para la demo |
 | Kernel `linuxkit` incompatible con NFS | Migración a MinIO (S3 por HTTP) |
 | `~4 %` de nulos en NO₂ invalidan `lag-24` | Job 2 dedicado a imputación con media móvil retroactiva |
+| Fallos de DNS en Minikube (`server misbehaving`) | Forzar DNS `8.8.8.8` en el nodo mediante SSH |
+| MinIO HA tarda en sincronizar los 4 nodos | Implementado bucle de reintentos con `mc` en el despliegue |
+| Conflicto de nombres en Secrets/ConfigMaps | Unificados nombres a `minio-credentials` para compatibilidad |
 
 ---
 
